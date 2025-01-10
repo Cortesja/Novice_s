@@ -167,70 +167,34 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 /* 通信スレッド関数 */
 DWORD WINAPI Threadfunc(void*) {
 
-	SOCKET sWait, sConnect;
+	int sock = (int)socket(AF_INET, SOCK_DGRAM, 0);
+	SOCKADDR_IN addr;
 	u_short wPort = 8000;
-	SOCKADDR_IN saConnect, saLocal;
 	int iLen, iRecv;
 
 	// リスンソケットをオープン
-	sWait = socket(AF_INET, SOCK_STREAM, 0);
-	ZeroMemory(&saLocal, sizeof(saLocal));
+	ZeroMemory(&addr, sizeof(addr));
 
 	// 8000番に接続待機用ソケット作成
-	memset(&saLocal, 0, sizeof(SOCKADDR_IN));
-	saLocal.sin_family = AF_INET;
-	saLocal.sin_addr.s_addr = INADDR_ANY;
-	saLocal.sin_port = htons(wPort);
+	memset(&addr, 0, sizeof(SOCKADDR_IN));
+	addr.sin_family = AF_INET;
+	addr.sin_addr.s_addr = INADDR_ANY;
+	addr.sin_port = htons(wPort);
 
 	//チェック
-	if (sWait == INVALID_SOCKET) {
+	if (sock == INVALID_SOCKET) {
 		SetWindowText(hwMain, L"listenソケットオープンエラー");
 		return 1;
 	}
 	//bindをする
-	if (bind(sWait, (sockaddr*)&saLocal, sizeof(saLocal)) == SOCKET_ERROR) {
+	if (bind(sock, (sockaddr*)&addr, sizeof(addr)) == SOCKET_ERROR) {
 
-		closesocket(sWait);
+		closesocket(sock);
 		SetWindowText(hwMain, L"bind接続待機ソケット失敗");
 		return 1;
 	}
-	//listen
-	if (listen(sWait, 2) == SOCKET_ERROR) {
 
-		closesocket(sWait);
-		SetWindowText(hwMain, L"listen接続待機ソケット失敗");
-
-		return 1;
-	}
-
-	SetWindowText(hwMain, L"接続待機ソケット成功");
-
-	iLen = sizeof(saConnect);
-	// 接続受け入れて送受信用ソケット作成
-	sConnect = accept(sWait, (sockaddr*)&saConnect, &iLen);
-	if (sConnect == INVALID_SOCKET) {
-		SetWindowText(hwMain, L"acceptエラー");
-		closesocket(sConnect);
-		return 1;
-	}
-
-	SetWindowText(hwMain, L"が接続してきました");
-	SetWindowText(hwMain, L"accept関数成功です");
-
-	// 接続待ち用ソケット解放
-	closesocket(sWait);
-
-	if (sConnect == INVALID_SOCKET) {
-
-		shutdown(sConnect, 2);
-		closesocket(sConnect);
-		shutdown(sWait, 2);
-		closesocket(sWait);
-
-		SetWindowText(hwMain, L"ソケット接続失敗");
-
-		return 1;
-	}
+	iLen = sizeof(addr);
 
 	SetWindowText(hwMain, L"ソケット接続成功");
 
@@ -238,19 +202,15 @@ DWORD WINAPI Threadfunc(void*) {
 
 	while (1)
 	{
-		int nRcv;
-
 		// クライアント側キャラの位置情報を受け取り
-		nRcv = recv(sConnect, (char*)&player_, sizeof(player_), 0);
+		recvfrom(sock, (char*)&player_, sizeof(player_), 0, (struct sockaddr*)&addr, &iLen);
 
 		// サーバ側キャラの位置情報を送信
-		send(sConnect, (const char*)&fixed_, sizeof(fixed_), 0);
-
-		if (nRcv == SOCKET_ERROR)break;
+		sendto(sock, (const char*)&fixed_, sizeof(fixed_), 0, (struct sockaddr*)&addr, sizeof(addr));
 	}
 
-	shutdown(sConnect, 2);
-	closesocket(sConnect);
+	shutdown(sock, 2);
+	closesocket(sock);
 
 	return 0;
 }
